@@ -1,97 +1,71 @@
-# Ansible Cosmos Network Creator
-✨ An Ansible toolkit for Cosmos networks 💫
+# Cosmos Network Deployment
 
-Use this toolkit to:
+Ansible playbooks for standing up Cosmos SDK networks, adapted to run Cascadia (`cascadiad`) nodes.
 
-- Join a testnet
-- Start a local testnet
-- Start a multi-node testnet
+You can use it to spin up a local single node testnet, build a multi-node testnet from scratch, join an existing network or add the supporting services a testnet usually needs, like an explorer, a faucet and an IBC relayer. It's based on Hypha Co-op's [cosmos-ansible](https://github.com/hyphacoop/cosmos-ansible) toolkit, with the defaults switched over to the Cascadia chain repos and the `uCC` denom.
 
-![Waterdrops feeding seedlings](images/seedling.gif)
+## What's included
 
-## 🌰 Requirements 
+| Playbook | What it sets up |
+| --- | --- |
+| `node.yml` | A chain node: builds or downloads the binary, configures it, runs it under systemd with Cosmovisor and can create a validator |
+| `faucet.yml` | A token faucet for a testnet |
+| `hermes.yml` | Two chains plus a Hermes relayer between them for IBC testing |
+| `bigdipper.yml` | Big Dipper 2.0 block explorer |
+| `blockscout.yml` | Blockscout EVM explorer |
+| `consensus-monitor.yml` | A dashboard for watching validator consensus |
+| `gaia-mainnet-export.yml` | Exports and edits a mainnet genesis file for testing upgrades |
+
+The roles in `roles/` also cover state sync, swap files, Nginx with SSL, Prometheus, node exporter, PANIC alerts and creating DigitalOcean droplets.
+
+## Requirements
 
 - Python 3
-- Ansible 
-  - Install Ansible with `pip` and not `apt`:
-    ```
-    pip install ansible
-    ```
+- Ansible, installed with `pip install ansible` rather than apt so you get a recent version
+- SSH access to the target machines (Ubuntu)
 
-## 🌱 Quick Start
+Install the Ansible roles and collections the playbooks use:
 
-To join the Cosmos Hub [public testnet](https://github.com/cosmos/testnets/tree/master/public):
-
-1. Clone this repository
-2. Run `ansible-galaxy install -r requirements.yml` to install dependencies 
-3. Set up SSH access to the target machine
-4. Run the playbook
-   ```
-   ansible-playbook node.yml -i examples/inventory-public-testnet.yml -e 'target=SERVER_IP_OR_DOMAIN'
-   ```
-5. Log into the target machine to follow the syncing process
-   ```
-   journalctl -fu cosmovisor
-   ```
-
-Watch the video below to see the playbook in action:
-
-[![Join the Cosmos Hub Public Testnet](https://img.youtube.com/vi/4KkMblQ6wcY/0.jpg)](https://youtu.be/4KkMblQ6wcY)
-
-## 🌳 Explore Further
-
-- See the [examples](examples/README.md) for more command, playbook, and configuration options.
-- See the [Playbook Variables Overview](docs/Playbook-Variables.md) for a list of default variables you can override with the `--extra-vars` or `-e` option.
-- Visit the [Cosmos testnets repo](https://github.com/cosmos/testnets) for more information.
-
-### Playbook Tags
-
-Use `cascadia_control.py` to run only part of the `cascadia` playbook:
-
-```
-./cascadia-control.py [-i inventory] [-t target] operation
+```bash
+ansible-galaxy install -r requirements.yml
 ```
 
-The inventory argument is optional and defaults to `inventory.yml` (e.g. `./cascadia-control.py restart`).
+## Quick start
 
-The target option is the server IP or domain.
+Start a local single node testnet on a server you can SSH into:
 
-The operation will apply to all the nodes in the inventory:
-- `restart` restarts the cascadiad/cosmovisor service
-- `stop` stops the cascadiad/cosmovisor service
-- `start` starts thecascadiad/cosmovisor service
-- `reboot` reboots the machine
-- `reset` runs `cascadiad unsafe-reset-all`
+```bash
+git clone https://github.com/AI-pro017/cosmos-network-deployment.git
+cd cosmos-network-deployment
+ansible-playbook node.yml -i examples/inventory-local.yml -e 'target=SERVER_IP_OR_DOMAIN'
+```
 
-### Role Folder Structure
+Then log into the machine and watch the node start:
 
-- The `cascadia` role provides the core functionality of this toolkit
-- Node setup: `roles/cascadia/tasks/main.yml`
-- Default variables: `roles/cascadia/defaults/main.yml`
-- Systemd services: `roles/cascadia/templates/`
-- To add a variable to the cascadia config files, add it to:
-  - `roles/cascadia/templates/ansible_vars.json.j2`  
+```bash
+journalctl -fu cascadiad
+```
 
-## 🌴 Automatic Tests
+The `examples/` folder has inventories for most setups: a three node testnet from existing keys or from scratch, a developer testnet, an IBC testnet, joining public testnets and the explorer and monitoring services. [examples/README.md](examples/README.md) walks through each one.
 
-This repository runs different tests automatically as defined below.
+## Managing nodes
 
-### Fresh State (weekly)
+`node_control.py` runs common operations across every node in an inventory:
 
-The fresh state test is run using GitHub Actions and results are displayed with a badge at the top of this readme.
+```bash
+./node_control.py -i inventory.yml restart
+```
 
-### Mainnet exported genesis (bi-weekly)
+The operations are `start`, `stop`, `restart`, `reboot` and `reset` (which wipes chain data with `unsafe-reset-all`). `-i` defaults to `inventory.yml`, and `-t` sets the server IP or domain for inventories that use a `target` variable.
 
-We export a genesis file from `cosmoshub-4` and modify it using our [tinkerer script](https://github.com/hyphacoop/cosmos-genesis-tinkerer). The exported and modified genesis files can be accessed [here](https://files.polypore.xyz/genesis/).
+## Configuration
 
-We run the stateful tests with the modified genesis file when there is a major version of Cascadia that is higher than the major version running on `cosmoshub-4`.
+Default settings live in `roles/<role>/defaults/main.yml`. Override any of them in your inventory or on the command line with `-e`. [docs/Playbook-Variables.md](docs/Playbook-Variables.md) lists the main ones, and the `docs/` folder has longer guides for multi-node testnets, the Hermes relayer and monitoring.
 
-### Joining the Public Testnet (weekly)
+## Linting
 
-We test joining the Cosmos Hub public testnet weekly using GitHub Actions and a badge is displayed at the top of this readme.
+Python is checked with pylint and YAML with yamllint. Run `./lint.sh` to check both. Outside CI it also formats the Python files with autopep8 first. The configs are in `.config/`.
 
-## 🔎 Code Standards
+## License
 
-- All Python code is formatted to PEP 8 and linted with `pylint`.
-- All YAML code is linted with `yamllint`.
-- See `lint.sh` and `.config/` for details.
+Apache 2.0. See [LICENSE](LICENSE).
